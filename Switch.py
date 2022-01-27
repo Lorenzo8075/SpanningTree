@@ -34,13 +34,11 @@ class Switch(StpSwitch):
         # -self.switchID                   (the ID number of this switch object)
         # -self.links                      (the list of swtich IDs connected to this switch object)
         super(Switch, self).__init__(idNum, topolink, neighbors)
-
         # TODO: Define a data structure to keep track of which links are part of / not part of the spanning tree.
-
-    	self.root = self.switchID #Seen as the root
-    	self.distance = 0 #Distance to the switch's root
-    	self.activeLinksList = [] #list that stores active links
-    	self.switchThrough = self.switchID #keeps track of which neighbor it goes through to get to the root
+        self.root = self.switchID #Seen as the root
+        self.distance = 0 #Distance to the switch's root
+        self.activeLinksList = [] #list that stores active links
+        self.switchThrough = self.switchID #keeps track of which neighbor goes through to get to the root
 
     def send_initial_messages(self):
         # TODO: This function needs to create and send the initial messages from this switch.
@@ -48,9 +46,10 @@ class Switch(StpSwitch):
         #      Use self.send_message(msg) to send this.  DO NOT use self.topology.send_message(msg)
         #		Do not define data structure here since it'll be overwritten every time the switch class is called
         #		All switches send their initial messages and push them tio the queue
+        defaultPaththrough = False
         for destinationNeighbor in self.links:
-        	message = Message(self.switchID,0,self.switchID,destinationNeighbor,False) #Message(claimedRoot, distanceToRoot, originID, destinationID, paththrough) 
-        	self.send_message(message) #Sends msg to the queue-> EX: root = 1, distance = 0, origin = 1, destination - 2, path = False
+             #Message(claimedRoot, distanceToRoot, originID, destinationID, paththrough) 
+            self.send_message(Message(self.switchID,0,self.switchID,destinationNeighbor,defaultPaththrough)) #Sends msg to the queue-> EX: root = 1, distance = 0, origin = 1, destination - 2, path = False
         return
 
     def process_message(self, message):
@@ -66,8 +65,8 @@ class Switch(StpSwitch):
             self.switchThrough = message.origin
         	
             for destinationNeighbor in self.links:
-                message = Message(self.root,self.distance,self.switchID,destinationNeighbor,message.origin == destinationNeighbor)
-                self.send_message(message)
+                isPaththrough = message.origin == destinationNeighbor
+                self.send_message(Message(self.root,self.distance,self.switchID,destinationNeighbor,isPaththrough))
 
         #Scenario 2) same root but shorter distance to the root
         if message.root == self.root and message.distance + 1 < self.distance:
@@ -78,25 +77,23 @@ class Switch(StpSwitch):
             self.switchThrough = message.origin
         	
             for destinationNeighbor in self.links:
-                message = Message(self.root,self.distance,self.switchID,destinationNeighbor,self.switchThrough == destinationNeighbor)
-                self.send_message(message)
+                isPaththrough = self.switchThrough == destinationNeighbor
+                self.send_message(Message(self.root,self.distance,self.switchID,destinationNeighbor,isPaththrough))
         
-        #Scenario 3) same root, same distance but use lower switchID to get to the root
-        if message.root == self.root and message.distance + 1 == self.distance and message.origin < self.switchThrough:
-        	self.activeLinksList.remove(self.switch)
-        	self.switchThrough = message.origin
-
-        	for destinationNeighbor in self.links:
-        		message = Message(self.root,self.distance,self.switchID,destinationNeighbor,self.switchThrough == destinationNeighbor)
-        		self.send_message(message)
+        #Scenario 3) same root, same distance but lower switchID to get to the root
+        if message.root == self.root and message.distance + 1 == self.distance and message.origin <= self.switchThrough:
+            if self.switchID in self.activeLinksList:
+                self.activeLinksList.remove(self.switchID)
+            self.switchThrough = message.origin
+            for destinationNeighbor in self.links:
+                isPaththrough = self.switchThrough == destinationNeighbor
+                self.send_message(Message(self.root,self.distance,self.switchID,destinationNeighbor,isPaththrough))
+        
         #Scenario 4)
-        if message.pathThrough:
-            if message.origin not in self.activeLinksList:
-        	    self.activeLinksList.append(message.origin)
-        elif message.pathThrough == False:
-            if message.origin in self.activeLinksList:
-                self.activeLinksList.remove(message.origin)
-
+        if message.pathThrough and message.origin not in self.activeLinksList:
+            self.activeLinksList.append(message.origin)
+        elif message.pathThrough == False and message.origin != self.switchThrough and message.origin in self.activeLinksList:
+            self.activeLinksList.remove(message.origin)
         return
 
     def generate_logstring(self):
@@ -113,8 +110,12 @@ class Switch(StpSwitch):
         #      A full example of a valid output file is included (sample_output.txt) with the project skeleton.
 
         joinLinks = []
+        comma = ', '
         self.activeLinksList.sort()
         for destinationNeighbor in self.activeLinksList:
-            joinLinks.append(str(self.switchID)+ "-" + str(destinationNeighbor))
-        return ', '.join(joinLinks)
+            joinLinks.append("{} - {}".format(self.switchID,destinationNeighbor))
+        return comma.join(joinLinks)
+        
+       
+        
 
